@@ -338,3 +338,23 @@ body:not(.signed-out) .auth-screen { display: none; }
 .auth-switch { text-align: center; margin: 16px 0 0 !important; }
 .auth-secondary { margin-top: 10px; }
 #auth-form[data-mode="signup"] #auth-forgot-link { display: none; }
+
+/* ---------- Profile ---------- */
+.avatar {
+  display: inline-grid; place-items: center; flex: none; border-radius: 50%;
+  background: var(--accent); color: var(--accent-text); font-weight: 700; letter-spacing: 0.02em;
+}
+.avatar-nav { width: 22px; height: 22px; font-size: 10px; }
+.avatar-lg { width: 64px; height: 64px; font-size: 24px; }
+.nav a[aria-current="page"] .avatar-nav, .tabbar a[aria-current="page"] .avatar-nav { box-shadow: 0 0 0 2px var(--accent-2), 0 0 0 4px var(--accent); }
+.profile-page { max-width: 720px; }
+.profile-header { display: flex; align-items: center; gap: 16px; }
+.profile-header h2 { font-size: 20px; margin-bottom: 2px; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
+.form-grid .field:first-child { grid-column: 1 / -1; }
+.banner-info { margin: 0; width: auto; background: var(--accent-2); color: var(--text); }
+.greeting { margin: 0; font-size: 18px; font-weight: 600; }
+@media (max-width: 640px) {
+  .form-grid { grid-template-columns: minmax(0, 1fr); }
+  .tabbar a { font-size: 10px; }
+}

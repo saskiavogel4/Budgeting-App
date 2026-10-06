@@ -6,13 +6,16 @@ import {
   currentUser, signIn, signUp, sendPasswordReset, setNewPassword, signOut,
   onAuthChange, linkErrorFromUrl, friendlyAuthError, isRecoveryLink,
 } from "./auth.js";
+import { loadProfile, saveProfile, firstName, initials } from "./profile.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const view = $("#view");
-const VIEWS = { overview: "Overview", activity: "Activity", budgets: "Budgets", settings: "Settings" };
+const VIEWS = { overview: "Overview", activity: "Activity", budgets: "Budgets", profile: "Profile", settings: "Settings" };
 let plaidInfo = { configured: false, reachable: false, env: "sandbox" };
 let busy = false;
 let user = null;
+let profile = null; // null while loading
+let profileError = null;
 let activityFilter = { q: "", cat: "all", limit: 150 };
 
 /* ---------- Formatting ---------- */
@@ -179,7 +182,7 @@ function txRow(t, clickable = true) {
 function welcomeView() {
   return `
     <section class="card welcome">
-      <h2>Welcome to CampusCash 👋</h2>
+      <h2>Welcome to CampusCash${firstName(profile) ? `, ${esc(firstName(profile))}` : ""} 👋</h2>
       <p>Budgeting built for college life. Connect your bank to see your balances and spending,
       set simple monthly budgets, and know exactly how much you can spend today.</p>
       <div class="btn-row">
@@ -211,8 +214,10 @@ function overviewView() {
     ? `<span class="pill pill-good">On track</span>`
     : `<span class="pill pill-bad">Over by ${money0(-m.left)}</span>`;
 
+  const name = firstName(profile);
   return `
     <div class="stack">
+      ${name ? `<p class="greeting">Hi, ${esc(name)} 👋</p>` : ""}
       <section class="grid grid-hero" aria-label="Summary">
         <div class="card stat-hero">
           <div class="stat-label">Safe to spend today</div>
@@ -320,6 +325,17 @@ function activityView() {
     </section>`;
 }
 
+function incomeNote(m) {
+  const planned = profile?.monthly_income;
+  if (planned > 0) {
+    const pct = Math.round((m.budgetTotal / planned) * 100);
+    const over = m.budgetTotal > planned;
+    return `Your budget is <strong>${pct}%</strong> of your ${money0(planned)} monthly income${over ? ` <span class="pill pill-warn">over by ${money0(m.budgetTotal - planned)}</span>` : ""}. `;
+  }
+  const earned = m.income > 0 ? `You've brought in ${money0(m.income)} this month. ` : "";
+  return `${earned}<a href="#/profile">Add your monthly income</a> to compare it with your budget. `;
+}
+
 function budgetsView() {
   const s = getState();
   const m = monthSummary();
@@ -333,7 +349,7 @@ function budgetsView() {
         </div>
         <div class="stat-value num">${money0(m.spent)} <span class="muted" style="font-size:16px;font-weight:500">of ${money0(m.budgetTotal)}</span></div>
         <div style="margin:12px 0 8px">${progressBar(m.spent, m.budgetTotal, "Total budget used")}</div>
-        <div class="muted small">${m.income > 0 ? `You've brought in ${money0(m.income)} this month. ` : ""}Tip: a common student rule of thumb is 50% needs, 30% wants, 20% savings.</div>
+        <div class="muted small">${incomeNote(m)}Tip: a common student rule of thumb is 50% needs, 30% wants, 20% savings.</div>
       </section>
       <section class="card">
         <div class="card-head"><h2>Monthly limits</h2><button class="link-btn" data-action="reset-budgets">Reset to defaults</button></div>
@@ -397,7 +413,10 @@ function settingsView() {
       <section class="card settings-section">
         <div class="card-head"><h2>Account</h2></div>
         <p>Signed in as <span class="account-email">${esc(user?.email || "")}</span></p>
-        <button class="btn" data-action="sign-out">Sign out</button>
+        <div class="btn-row">
+          <a class="btn" href="#/profile">Edit profile</a>
+          <button class="btn" data-action="sign-out">Sign out</button>
+        </div>
       </section>
 
       <section class="card settings-section">
@@ -407,6 +426,132 @@ function settingsView() {
       </section>
     </div>`;
 }
+
+function profileView() {
+  if (profileError && !profile) {
+    return `
+      <section class="card"><div class="empty"><span class="emoji">⚠️</span>Couldn't load your profile. ${esc(profileError)}
+      <div style="margin-top:12px"><button class="btn" data-action="reload-profile">Try again</button></div></div></section>`;
+  }
+  if (!profile) return `<section class="card"><div class="empty">Loading your profile…</div></section>`;
+  const p = profile;
+  const isNew = !p.full_name;
+  const thisYear = new Date().getFullYear();
+  const years = Array.from({ length: 9 }, (_, i) => thisYear - 2 + i);
+  if (p.graduation_year && !years.includes(p.graduation_year)) years.push(p.graduation_year);
+  years.sort((a, b) => a - b);
+  return `
+    <div class="stack profile-page">
+      <section class="card profile-header">
+        <span class="avatar avatar-lg" aria-hidden="true">${esc(initials(p, user?.email))}</span>
+        <div style="min-width:0">
+          <h2>${esc(p.full_name || "Your profile")}</h2>
+          <div class="muted small account-email">${esc(user?.email || "")}</div>
+          ${p.school || p.major ? `<div class="muted small">${esc([p.major, p.school].filter(Boolean).join(" · "))}${p.graduation_year ? ` · Class of ${p.graduation_year}` : ""}</div>` : ""}
+        </div>
+      </section>
+      ${isNew ? `<div class="banner banner-info">👋 Welcome! Tell us a bit about yourself so CampusCash can personalize your budget.</div>` : ""}
+      <form class="card" id="profile-form" novalidate>
+        <div class="card-head"><h2>About you</h2></div>
+        <div class="form-grid">
+          <div class="field">
+            <label for="pf-name">Full name</label>
+            <input class="input" id="pf-name" name="full_name" autocomplete="name" maxlength="80" required value="${esc(p.full_name)}" placeholder="Alex Rivera">
+          </div>
+          <div class="field">
+            <label for="pf-school">School</label>
+            <input class="input" id="pf-school" name="school" autocomplete="organization" maxlength="120" value="${esc(p.school)}" placeholder="University of Florida">
+          </div>
+          <div class="field">
+            <label for="pf-major">Major</label>
+            <input class="input" id="pf-major" name="major" maxlength="80" value="${esc(p.major)}" placeholder="Business">
+          </div>
+          <div class="field">
+            <label for="pf-year">Graduation year</label>
+            <select class="input" id="pf-year" name="graduation_year">
+              <option value="">Select a year</option>
+              ${years.map((y) => `<option value="${y}" ${p.graduation_year === y ? "selected" : ""}>${y}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field">
+            <label for="pf-income">Monthly income</label>
+            <div class="money-input"><input class="input num" id="pf-income" name="monthly_income" type="number" inputmode="decimal" min="0" max="1000000" step="1" value="${p.monthly_income ?? ""}" placeholder="0"></div>
+            <p class="hint small muted">Jobs, financial aid, family help. Used to check your budget fits.</p>
+          </div>
+        </div>
+        <p class="auth-error" id="profile-error" role="alert" hidden></p>
+        <div class="btn-row">
+          <button class="btn btn-primary" type="submit" id="profile-save">${isNew ? "Save profile" : "Save changes"}</button>
+          ${isNew ? `<a class="btn" href="#/overview" data-action="skip-profile">Skip for now</a>` : ""}
+        </div>
+        ${p.updated_at && !isNew ? `<p class="muted small" style="margin:12px 0 0">Last updated ${new Date(p.updated_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>` : ""}
+      </form>
+    </div>`;
+}
+
+async function fetchProfile() {
+  const uid = user?.id;
+  profileError = null;
+  try {
+    const p = await loadProfile(uid);
+    if (user?.id !== uid) return;
+    profile = p;
+  } catch (err) {
+    console.error(err);
+    profileError = friendlyAuthError(err);
+  }
+  render();
+  updateAvatar();
+  // First visit: send new users to their profile once.
+  if (profile && !profile.full_name && currentView() === "overview") {
+    let skipped = false;
+    try {
+      skipped = localStorage.getItem(`campuscash:profile-skipped:${uid}`) === "1";
+    } catch {
+      /* ignore */
+    }
+    if (!skipped) location.hash = "#/profile";
+  }
+}
+
+function updateAvatar() {
+  const label = user ? initials(profile, user.email) : "";
+  document.querySelectorAll("[data-avatar]").forEach((el) => (el.textContent = label));
+}
+
+view.addEventListener("submit", async (e) => {
+  if (e.target.id !== "profile-form") return;
+  e.preventDefault();
+  const f = e.target.elements;
+  const fullName = f.full_name.value.trim();
+  if (!fullName) {
+    showError("#profile-error", "Please enter your name.");
+    return f.full_name.focus();
+  }
+  const income = f.monthly_income.value.trim();
+  if (income && !(Number(income) >= 0 && Number(income) <= 1000000)) {
+    return showError("#profile-error", "Monthly income must be between $0 and $1,000,000.");
+  }
+  const fields = {
+    full_name: fullName,
+    school: f.school.value.trim() || null,
+    major: f.major.value.trim() || null,
+    graduation_year: f.graduation_year.value ? Number(f.graduation_year.value) : null,
+    monthly_income: income === "" ? null : Math.round(Number(income) * 100) / 100,
+  };
+  const wasNew = !profile?.full_name;
+  await submitting($("#profile-save"), "Saving…", async () => {
+    try {
+      profile = await saveProfile(user.id, fields);
+      updateAvatar();
+      toast(wasNew ? "Profile created!" : "Profile saved");
+      if (wasNew) location.hash = "#/overview";
+      else render();
+    } catch (err) {
+      showError("#profile-error", friendlyAuthError(err));
+    }
+  });
+});
 
 /* ---------- Render ---------- */
 function currentView() {
@@ -424,7 +569,7 @@ function render() {
     if (a.dataset.view === v) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
   });
-  view.innerHTML = { overview: overviewView, activity: activityView, budgets: budgetsView, settings: settingsView }[v]();
+  view.innerHTML = { overview: overviewView, activity: activityView, budgets: budgetsView, profile: profileView, settings: settingsView }[v]();
 
   $("#sync-btn").hidden = !s.mode;
   $("#sync-label").textContent = s.mode ? timeAgo(lastSynced()) : "";
@@ -615,6 +760,15 @@ document.addEventListener("click", async (e) => {
     case "theme":
       applyTheme(el.dataset.theme);
       return render();
+    case "reload-profile":
+      return fetchProfile();
+    case "skip-profile":
+      try {
+        localStorage.setItem(`campuscash:profile-skipped:${user.id}`, "1");
+      } catch {
+        /* ignore */
+      }
+      return;
     case "sign-out":
       await signOut();
       return;
@@ -718,6 +872,7 @@ function setAuthMode(mode) {
 
 function showSignedOut(message) {
   user = null;
+  profile = null;
   document.body.className = "signed-out";
   document.title = "Sign in · CampusCash";
   if (recovering) {
@@ -735,7 +890,10 @@ function startApp(u) {
   document.body.className = "signed-in";
   if (!switched) return;
   initStore(u.id);
+  profile = null;
   render();
+  updateAvatar();
+  fetchProfile();
   plaidStatus().then((info) => {
     plaidInfo = info;
     if (currentView() === "settings") render();

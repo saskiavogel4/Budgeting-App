@@ -9,6 +9,7 @@ A budgeting app built for college students. Connect your bank through [Plaid](ht
 - **Responsive**: sidebar on desktop, icon rail on tablets, bottom tab bar on phones. Installable as a home-screen app
 - **Demo mode**: try everything with realistic sample data, no bank or keys needed
 - **Email + password sign-in**: create an account, sign in, and reset a forgotten password (Supabase Auth). Each user's data is kept separate
+- **Profiles**: each user has a profile (name, school, major, graduation year, monthly income) saved in Supabase. New users are guided to fill it in, and the Budgets page compares your budget with your income
 
 ## How it works
 
@@ -32,6 +33,10 @@ Sign-in uses the Supabase project **CampusCash** (`uprmyehyzlyhqmlushok`). Its U
 
 - The Netlify Functions only work for signed-in users. They verify the Supabase session on every request.
 - Each encrypted bank token is tied to the user who connected it.
+
+**Database:** the `profiles` table is defined in `supabase/migrations/` (already applied to the CampusCash project).
+- Row Level Security means each user can only read and edit their own profile.
+- A trigger creates an empty profile automatically when someone signs up.
 
 **One-time setup in the Supabase dashboard** (Authentication → URL Configuration):
 

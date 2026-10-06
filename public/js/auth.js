@@ -6,7 +6,7 @@ import { SUPABASE_URL, SUPABASE_KEY } from "./config.js";
 // "reset your password" email and needs to choose a new password.
 export const isRecoveryLink = /(^|[#&?])type=recovery(&|$)/.test(window.location.hash + window.location.search);
 
-const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+export const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit" },
 });
 
