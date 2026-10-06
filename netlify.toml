@@ -1,0 +1,34 @@
+# Netlify configuration for CampusCash.
+# No build step is needed: the site is plain HTML/CSS/JS in /public,
+# and the Plaid API calls run as Netlify Functions in /netlify/functions.
+
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+  command = ""
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[functions]
+  node_bundler = "esbuild"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' https://cdn.plaid.com; frame-src https://cdn.plaid.com; connect-src 'self' https://*.plaid.com; img-src 'self' data: https://plaid-merchant-logos.plaid.com https://*.plaid.com; style-src 'self' 'unsafe-inline'; font-src 'self'; base-uri 'self'; form-action 'self'"
+
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# Single-page app: send unknown paths to index.html (API paths are handled by functions first).
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
