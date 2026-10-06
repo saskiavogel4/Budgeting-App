@@ -8,7 +8,7 @@ A budgeting app built for college students. Connect your bank through [Plaid](ht
 - **Themes**: Light, Dark, and System (follows your device)
 - **Responsive**: sidebar on desktop, icon rail on tablets, bottom tab bar on phones. Installable as a home-screen app
 - **Demo mode**: try everything with realistic sample data, no bank or keys needed
-- **Email-only sign-in**: enter your email, click the link you receive, and you're in (Supabase Auth magic link). Each user's data is kept separate
+- **Email + password sign-in**: create an account, sign in, and reset a forgotten password (Supabase Auth). Each user's data is kept separate
 
 ## How it works
 
@@ -38,7 +38,11 @@ Sign-in uses the Supabase project **CampusCash** (`uprmyehyzlyhqmlushok`). Its U
 - **Site URL**: your Netlify URL, e.g. `https://your-site.netlify.app`
 - **Redirect URLs**: add `https://your-site.netlify.app/**` (and `http://localhost:8888/**` for local dev)
 
-**Email delivery:** Supabase's built-in email sender only delivers to members of your Supabase organization's team, and only a few emails per hour. That's fine for personal use. To let anyone sign in, add a custom SMTP provider (e.g. Resend) under Authentication → Emails → SMTP Settings.
+The URL settings make sure links in confirmation and password-reset emails open your site.
+
+**Email delivery:** New accounts must confirm their email, and password resets are sent by email. Supabase's built-in email sender only delivers to members of your Supabase organization's team, and only a few emails per hour. That's fine for personal use. To let anyone sign up, either:
+- add a custom SMTP provider (e.g. Resend) under Authentication → Emails → SMTP Settings, or
+- turn off **Confirm email** under Authentication → Sign In / Providers → Email, so new accounts can sign in right away. Password resets still need email.
 
 ## Plaid keys (required for real bank data)
 

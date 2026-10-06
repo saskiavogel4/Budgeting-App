@@ -2,7 +2,10 @@ import { CATEGORIES, category, categorizePlaid, defaultBudgets, isSpendingCatego
 import { getState, update, subscribe, reset, initStore } from "./store.js";
 import { buildDemoData } from "./demo.js";
 import { connectBank, reconnectBank, disconnectBank, syncAll, plaidStatus } from "./plaid.js";
-import { currentUser, sendSignInLink, signOut, onAuthChange, linkErrorFromUrl } from "./auth.js";
+import {
+  currentUser, signIn, signUp, sendPasswordReset, setNewPassword, signOut,
+  onAuthChange, linkErrorFromUrl, friendlyAuthError, isRecoveryLink,
+} from "./auth.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const view = $("#view");
@@ -677,20 +680,53 @@ setInterval(() => getState().mode && ($("#sync-label").textContent = timeAgo(las
 
 /* ---------- Sign-in ---------- */
 const authForm = $("#auth-form");
-const authError = $("#auth-error");
+const AUTH_PANELS = ["#auth-form", "#auth-forgot", "#auth-reset", "#auth-message"];
+let recovering = isRecoveryLink;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function showAuthError(msg) {
-  authError.textContent = msg || "";
-  authError.hidden = !msg;
+function showPanel(id) {
+  AUTH_PANELS.forEach((p) => ($(p).hidden = p !== id));
+  document.querySelectorAll(".auth-error").forEach((el) => (el.hidden = true));
+  const first = $(`${id} input`);
+  if (first && !first.value) first.focus();
+}
+
+function showError(id, msg) {
+  const el = $(id);
+  el.textContent = msg || "";
+  el.hidden = !msg;
+}
+
+function showMessage(title, text) {
+  $("#auth-message-title").textContent = title;
+  $("#auth-message-text").textContent = text;
+  showPanel("#auth-message");
+}
+
+function setAuthMode(mode) {
+  const signup = mode === "signup";
+  authForm.dataset.mode = mode;
+  $("#auth-title").textContent = signup ? "Create your account" : "Sign in";
+  $("#auth-subtitle").textContent = signup ? "Start budgeting in under a minute." : "Welcome back! Sign in to see your budget.";
+  $("#auth-submit").textContent = signup ? "Create account" : "Sign in";
+  $("#auth-switch-text").textContent = signup ? "Already have an account?" : "New here?";
+  $("#auth-switch").textContent = signup ? "Sign in" : "Create an account";
+  $("#auth-password").autocomplete = signup ? "new-password" : "current-password";
+  $("#auth-password-hint").hidden = !signup;
+  showError("#auth-error", "");
 }
 
 function showSignedOut(message) {
   user = null;
   document.body.className = "signed-out";
-  authForm.hidden = false;
-  $("#auth-sent").hidden = true;
-  showAuthError(message);
   document.title = "Sign in · CampusCash";
+  if (recovering) {
+    showPanel("#auth-reset");
+    return;
+  }
+  setAuthMode("signin");
+  showPanel("#auth-form");
+  showError("#auth-error", message);
 }
 
 function startApp(u) {
@@ -710,49 +746,123 @@ function startApp(u) {
   });
 }
 
+// Disables a form's submit button while a request runs.
+async function submitting(button, busyLabel, fn) {
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = busyLabel;
+  try {
+    await fn();
+  } finally {
+    button.disabled = false;
+    button.textContent = label;
+  }
+}
+
 authForm.addEventListener("submit", async (e) => {
   e.preventDefault();
+  const signup = authForm.dataset.mode === "signup";
   const email = $("#auth-email").value.trim();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showAuthError("Enter a valid email address.");
-  const btn = $("#auth-submit");
-  btn.disabled = true;
-  btn.textContent = "Sending…";
-  showAuthError("");
-  try {
-    await sendSignInLink(email);
-    $("#auth-sent-email").textContent = email;
-    authForm.hidden = true;
-    $("#auth-sent").hidden = false;
-  } catch (err) {
-    const msg = err?.status === 429 || /rate limit/i.test(err?.message || "")
-      ? "Too many sign-in emails were sent. Please wait a few minutes and try again."
-      : err?.message || "Couldn't send the email. Check your connection and try again.";
-    showAuthError(msg);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Email me a sign-in link";
-  }
+  const password = $("#auth-password").value;
+  if (!EMAIL_RE.test(email)) return showError("#auth-error", "Enter a valid email address.");
+  if (!password) return showError("#auth-error", "Enter your password.");
+  if (signup && password.length < 6) return showError("#auth-error", "Password must be at least 6 characters.");
+  showError("#auth-error", "");
+  await submitting($("#auth-submit"), signup ? "Creating account…" : "Signing in…", async () => {
+    try {
+      if (signup) {
+        const signedIn = await signUp(email, password);
+        if (!signedIn) {
+          showMessage("Confirm your email", `We sent a confirmation link to ${email}. Click it, then come back and sign in.`);
+        }
+      } else {
+        await signIn(email, password);
+      }
+      $("#auth-password").value = "";
+    } catch (err) {
+      showError("#auth-error", friendlyAuthError(err));
+    }
+  });
 });
 
-$("#auth-back").addEventListener("click", () => {
-  authForm.hidden = false;
-  $("#auth-sent").hidden = true;
+$("#auth-switch").addEventListener("click", () => {
+  setAuthMode(authForm.dataset.mode === "signup" ? "signin" : "signup");
   $("#auth-email").focus();
 });
+
+$("#auth-forgot-link").addEventListener("click", () => {
+  $("#forgot-email").value = $("#auth-email").value.trim();
+  showPanel("#auth-forgot");
+});
+
+$("#auth-forgot").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = $("#forgot-email").value.trim();
+  if (!EMAIL_RE.test(email)) return showError("#forgot-error", "Enter a valid email address.");
+  await submitting($("#forgot-submit"), "Sending…", async () => {
+    try {
+      await sendPasswordReset(email);
+      showMessage("Check your email", `If an account exists for ${email}, we sent a link to reset your password.`);
+    } catch (err) {
+      showError("#forgot-error", friendlyAuthError(err));
+    }
+  });
+});
+
+$("#auth-reset").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const password = $("#reset-password").value;
+  if (password.length < 6) return showError("#reset-error", "Password must be at least 6 characters.");
+  await submitting($("#reset-submit"), "Saving…", async () => {
+    try {
+      await setNewPassword(password);
+      recovering = false;
+      $("#reset-password").value = "";
+      const u = await currentUser();
+      if (u) {
+        startApp(u);
+        toast("Password updated");
+      } else {
+        showSignedOut("Password updated. Please sign in.");
+      }
+    } catch (err) {
+      showError("#reset-error", /session|jwt|expired/i.test(err?.message || "")
+        ? "This reset link has expired. Request a new one."
+        : friendlyAuthError(err));
+    }
+  });
+});
+
+document.querySelectorAll("[data-auth-back]").forEach((btn) =>
+  btn.addEventListener("click", () => {
+    setAuthMode("signin");
+    showPanel("#auth-form");
+  })
+);
+
+document.querySelectorAll("[data-toggle-password]").forEach((btn) =>
+  btn.addEventListener("click", () => {
+    const input = $(`#${btn.dataset.togglePassword}`);
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    btn.textContent = show ? "Hide" : "Show";
+    btn.setAttribute("aria-label", show ? "Hide password" : "Show password");
+  })
+);
 
 /* ---------- Boot ---------- */
 applyTheme(themePref());
 const linkError = linkErrorFromUrl();
 onAuthChange((event, u) => {
-  if (u) startApp(u);
+  if (event === "PASSWORD_RECOVERY") {
+    recovering = true;
+    showSignedOut();
+  } else if (u && !recovering) startApp(u);
   else if (event === "SIGNED_OUT") showSignedOut();
 });
 currentUser().then((u) => {
-  if (u) {
-    startApp(u);
-    // Drop any leftover sign-in tokens from the address bar.
-    if (/access_token|refresh_token/.test(location.hash)) history.replaceState(null, "", "/#/overview");
-  } else {
-    showSignedOut(linkError ? `That sign-in link didn't work (${linkError}). Request a new one below.` : "");
-  }
+  // Drop any leftover tokens from email links out of the address bar.
+  if (/access_token|refresh_token/.test(location.hash)) history.replaceState(null, "", "/#/overview");
+  if (u && !recovering) startApp(u);
+  else showSignedOut(linkError ? `That email link didn't work (${linkError}). Please try again.` : "");
 });

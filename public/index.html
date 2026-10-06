@@ -23,22 +23,66 @@
         <span class="brand-mark" aria-hidden="true">$</span>
         <span class="brand-name">CampusCash</span>
       </div>
-      <form id="auth-form" novalidate>
+      <!-- Sign in / create account -->
+      <form id="auth-form" data-mode="signin" novalidate>
         <h1 id="auth-title">Sign in</h1>
-        <p class="muted">Enter your email and we'll send you a sign-in link. No password needed.</p>
+        <p class="muted" id="auth-subtitle">Welcome back! Sign in to see your budget.</p>
         <div class="field">
           <label for="auth-email">Email</label>
           <input class="input" id="auth-email" type="email" autocomplete="email" inputmode="email" required placeholder="you@school.edu">
         </div>
+        <div class="field">
+          <div class="field-row">
+            <label for="auth-password">Password</label>
+            <button class="link-btn small" type="button" id="auth-forgot-link">Forgot password?</button>
+          </div>
+          <div class="password-input">
+            <input class="input" id="auth-password" type="password" autocomplete="current-password" required minlength="6">
+            <button class="link-btn small" type="button" data-toggle-password="auth-password" aria-label="Show password">Show</button>
+          </div>
+          <p class="hint small muted" id="auth-password-hint" hidden>At least 6 characters.</p>
+        </div>
         <p class="auth-error" id="auth-error" role="alert" hidden></p>
-        <button class="btn btn-primary btn-block" id="auth-submit" type="submit">Email me a sign-in link</button>
+        <button class="btn btn-primary btn-block" id="auth-submit" type="submit">Sign in</button>
+        <p class="auth-switch small muted"><span id="auth-switch-text">New here?</span> <button class="link-btn small" type="button" id="auth-switch">Create an account</button></p>
       </form>
-      <div id="auth-sent" hidden>
+
+      <!-- Forgot password -->
+      <form id="auth-forgot" novalidate hidden>
+        <h1>Reset your password</h1>
+        <p class="muted">Enter your email and we'll send you a link to choose a new password.</p>
+        <div class="field">
+          <label for="forgot-email">Email</label>
+          <input class="input" id="forgot-email" type="email" autocomplete="email" inputmode="email" required placeholder="you@school.edu">
+        </div>
+        <p class="auth-error" id="forgot-error" role="alert" hidden></p>
+        <button class="btn btn-primary btn-block" id="forgot-submit" type="submit">Send reset link</button>
+        <button class="btn btn-block auth-secondary" type="button" data-auth-back>Back to sign in</button>
+      </form>
+
+      <!-- Choose a new password (after clicking the reset email) -->
+      <form id="auth-reset" novalidate hidden>
+        <h1>Choose a new password</h1>
+        <p class="muted">Enter a new password for your account.</p>
+        <div class="field">
+          <label for="reset-password">New password</label>
+          <div class="password-input">
+            <input class="input" id="reset-password" type="password" autocomplete="new-password" required minlength="6">
+            <button class="link-btn small" type="button" data-toggle-password="reset-password" aria-label="Show password">Show</button>
+          </div>
+          <p class="hint small muted">At least 6 characters.</p>
+        </div>
+        <p class="auth-error" id="reset-error" role="alert" hidden></p>
+        <button class="btn btn-primary btn-block" id="reset-submit" type="submit">Save new password</button>
+      </form>
+
+      <!-- Messages: "check your email" -->
+      <div id="auth-message" hidden>
         <div class="auth-sent-icon" aria-hidden="true">📬</div>
-        <h1>Check your email</h1>
-        <p class="muted">We sent a sign-in link to <strong id="auth-sent-email"></strong>. Click the link in that email to sign in.</p>
+        <h1 id="auth-message-title">Check your email</h1>
+        <p class="muted" id="auth-message-text"></p>
         <p class="muted small">Don't see it? Check your spam folder.</p>
-        <button class="btn btn-block" id="auth-back" type="button">Use a different email</button>
+        <button class="btn btn-block" type="button" data-auth-back>Back to sign in</button>
       </div>
     </div>
   </section>

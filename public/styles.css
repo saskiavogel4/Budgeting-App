@@ -330,3 +330,11 @@ body:not(.signed-out) .auth-screen { display: none; }
 .auth-error { color: var(--bad); background: var(--bad-bg); padding: 10px 12px; border-radius: 10px; font-size: 14px; }
 .btn-block { width: 100%; }
 .account-email { font-weight: 600; word-break: break-all; }
+.field-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.password-input { position: relative; }
+.password-input .input { padding-right: 64px; }
+.password-input .link-btn { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); }
+.hint { margin: 0; }
+.auth-switch { text-align: center; margin: 16px 0 0 !important; }
+.auth-secondary { margin-top: 10px; }
+#auth-form[data-mode="signup"] #auth-forgot-link { display: none; }
