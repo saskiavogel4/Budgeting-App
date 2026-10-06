@@ -14,8 +14,34 @@
   <script src="/js/theme-init.js"></script>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body>
+<body class="auth-pending">
   <a class="skip-link" href="#main">Skip to content</a>
+
+  <section class="auth-screen" id="auth-screen" aria-labelledby="auth-title">
+    <div class="card auth-card">
+      <div class="brand auth-brand">
+        <span class="brand-mark" aria-hidden="true">$</span>
+        <span class="brand-name">CampusCash</span>
+      </div>
+      <form id="auth-form" novalidate>
+        <h1 id="auth-title">Sign in</h1>
+        <p class="muted">Enter your email and we'll send you a sign-in link. No password needed.</p>
+        <div class="field">
+          <label for="auth-email">Email</label>
+          <input class="input" id="auth-email" type="email" autocomplete="email" inputmode="email" required placeholder="you@school.edu">
+        </div>
+        <p class="auth-error" id="auth-error" role="alert" hidden></p>
+        <button class="btn btn-primary btn-block" id="auth-submit" type="submit">Email me a sign-in link</button>
+      </form>
+      <div id="auth-sent" hidden>
+        <div class="auth-sent-icon" aria-hidden="true">📬</div>
+        <h1>Check your email</h1>
+        <p class="muted">We sent a sign-in link to <strong id="auth-sent-email"></strong>. Click the link in that email to sign in.</p>
+        <p class="muted small">Don't see it? Check your spam folder.</p>
+        <button class="btn btn-block" id="auth-back" type="button">Use a different email</button>
+      </div>
+    </div>
+  </section>
 
   <div class="layout">
     <aside class="sidebar" aria-label="Primary">
@@ -70,6 +96,7 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
+  <script src="/vendor/supabase-2.117.2.js"></script>
   <script type="module" src="/js/app.js"></script>
 </body>
 </html>

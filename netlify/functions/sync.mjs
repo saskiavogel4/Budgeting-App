@@ -14,9 +14,9 @@ async function getAccounts(access_token) {
   }
 }
 
-export default handler(async (body) => {
+export default handler(async (body, user) => {
   if (!body.token) throw new HttpError(400, "MISSING_TOKEN", "token is required.");
-  const access_token = openToken(body.token);
+  const access_token = openToken(body.token, user.id);
 
   const accounts = await getAccounts(access_token);
 

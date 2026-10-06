@@ -1,6 +1,7 @@
 // Browser side of the Plaid integration. Talks only to our own Netlify Functions;
 // Plaid keys never reach the browser.
 import { getState, update } from "./store.js";
+import { accessToken } from "./auth.js";
 
 export class ApiError extends Error {
   constructor(code, message, status) {
@@ -15,7 +16,7 @@ async function api(path, body) {
   try {
     res = await fetch(`/api/${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${await accessToken()}` },
       body: JSON.stringify(body || {}),
     });
   } catch {

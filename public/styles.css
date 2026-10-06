@@ -313,3 +313,20 @@ dialog h2 { font-size: 18px; margin-bottom: 14px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- Sign-in ---------- */
+body:not(.signed-in) .layout, body:not(.signed-in) .tabbar { display: none; }
+body:not(.signed-out) .auth-screen { display: none; }
+.auth-screen {
+  min-height: 100vh; min-height: 100dvh; display: grid; place-items: center;
+  padding: 24px 16px; padding-top: max(24px, env(safe-area-inset-top));
+}
+.auth-card { width: 100%; max-width: 400px; padding: 28px; }
+.auth-brand { padding: 0 0 24px; justify-content: flex-start; }
+.auth-brand .brand-name { display: inline; }
+.auth-card h1 { font-size: 22px; margin-bottom: 6px; }
+.auth-card p { margin: 0 0 18px; }
+.auth-sent-icon { font-size: 40px; margin-bottom: 8px; }
+.auth-error { color: var(--bad); background: var(--bad-bg); padding: 10px 12px; border-radius: 10px; font-size: 14px; }
+.btn-block { width: 100%; }
+.account-email { font-weight: 600; word-break: break-all; }

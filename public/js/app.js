@@ -1,13 +1,15 @@
 import { CATEGORIES, category, categorizePlaid, defaultBudgets, isSpendingCategory } from "./categories.js";
-import { getState, update, subscribe, reset } from "./store.js";
+import { getState, update, subscribe, reset, initStore } from "./store.js";
 import { buildDemoData } from "./demo.js";
 import { connectBank, reconnectBank, disconnectBank, syncAll, plaidStatus } from "./plaid.js";
+import { currentUser, sendSignInLink, signOut, onAuthChange, linkErrorFromUrl } from "./auth.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const view = $("#view");
 const VIEWS = { overview: "Overview", activity: "Activity", budgets: "Budgets", settings: "Settings" };
 let plaidInfo = { configured: false, reachable: false, env: "sandbox" };
 let busy = false;
+let user = null;
 let activityFilter = { q: "", cat: "all", limit: 150 };
 
 /* ---------- Formatting ---------- */
@@ -390,6 +392,12 @@ function settingsView() {
       </section>
 
       <section class="card settings-section">
+        <div class="card-head"><h2>Account</h2></div>
+        <p>Signed in as <span class="account-email">${esc(user?.email || "")}</span></p>
+        <button class="btn" data-action="sign-out">Sign out</button>
+      </section>
+
+      <section class="card settings-section">
         <div class="card-head"><h2>Your data</h2></div>
         <p>Budgets, cash expenses and cached bank data are stored only in this browser.</p>
         <button class="btn btn-danger" data-action="clear">Clear all data</button>
@@ -404,6 +412,7 @@ function currentView() {
 }
 
 function render() {
+  if (!user) return;
   const v = currentView();
   const s = getState();
   document.title = `${VIEWS[v]} · CampusCash`;
@@ -442,7 +451,10 @@ async function withBusy(fn) {
     await fn();
   } catch (err) {
     console.error(err);
-    if (err.code === "NOT_CONFIGURED" || err.code === "NO_FUNCTIONS") showSetupHelp(err);
+    if (err.code === "NOT_SIGNED_IN") {
+      await signOut();
+      showSignedOut(err.message);
+    } else if (err.code === "NOT_CONFIGURED" || err.code === "NO_FUNCTIONS") showSetupHelp(err);
     else toast(err.message || "Something went wrong.");
   } finally {
     busy = false;
@@ -600,6 +612,9 @@ document.addEventListener("click", async (e) => {
     case "theme":
       applyTheme(el.dataset.theme);
       return render();
+    case "sign-out":
+      await signOut();
+      return;
     case "add-cash":
       return addCashExpense();
     case "edit-tx":
@@ -660,14 +675,84 @@ window.addEventListener("hashchange", () => {
 subscribe(render);
 setInterval(() => getState().mode && ($("#sync-label").textContent = timeAgo(lastSynced())), 60000);
 
+/* ---------- Sign-in ---------- */
+const authForm = $("#auth-form");
+const authError = $("#auth-error");
+
+function showAuthError(msg) {
+  authError.textContent = msg || "";
+  authError.hidden = !msg;
+}
+
+function showSignedOut(message) {
+  user = null;
+  document.body.className = "signed-out";
+  authForm.hidden = false;
+  $("#auth-sent").hidden = true;
+  showAuthError(message);
+  document.title = "Sign in · CampusCash";
+}
+
+function startApp(u) {
+  const switched = user?.id !== u.id;
+  user = u;
+  document.body.className = "signed-in";
+  if (!switched) return;
+  initStore(u.id);
+  render();
+  plaidStatus().then((info) => {
+    plaidInfo = info;
+    if (currentView() === "settings") render();
+    // Refresh live bank data if it's more than 15 minutes old.
+    const s = getState();
+    const stale = !lastSynced() || Date.now() - new Date(lastSynced()).getTime() > 15 * 60000;
+    if (s.mode === "plaid" && info.configured && stale) withBusy(syncAll);
+  });
+}
+
+authForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = $("#auth-email").value.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showAuthError("Enter a valid email address.");
+  const btn = $("#auth-submit");
+  btn.disabled = true;
+  btn.textContent = "Sending…";
+  showAuthError("");
+  try {
+    await sendSignInLink(email);
+    $("#auth-sent-email").textContent = email;
+    authForm.hidden = true;
+    $("#auth-sent").hidden = false;
+  } catch (err) {
+    const msg = err?.status === 429 || /rate limit/i.test(err?.message || "")
+      ? "Too many sign-in emails were sent. Please wait a few minutes and try again."
+      : err?.message || "Couldn't send the email. Check your connection and try again.";
+    showAuthError(msg);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Email me a sign-in link";
+  }
+});
+
+$("#auth-back").addEventListener("click", () => {
+  authForm.hidden = false;
+  $("#auth-sent").hidden = true;
+  $("#auth-email").focus();
+});
+
 /* ---------- Boot ---------- */
 applyTheme(themePref());
-render();
-plaidStatus().then((info) => {
-  plaidInfo = info;
-  if (currentView() === "settings") render();
-  // Refresh live bank data if it's more than 15 minutes old.
-  const s = getState();
-  const stale = !lastSynced() || Date.now() - new Date(lastSynced()).getTime() > 15 * 60000;
-  if (s.mode === "plaid" && info.configured && stale) withBusy(syncAll);
+const linkError = linkErrorFromUrl();
+onAuthChange((event, u) => {
+  if (u) startApp(u);
+  else if (event === "SIGNED_OUT") showSignedOut();
+});
+currentUser().then((u) => {
+  if (u) {
+    startApp(u);
+    // Drop any leftover sign-in tokens from the address bar.
+    if (/access_token|refresh_token/.test(location.hash)) history.replaceState(null, "", "/#/overview");
+  } else {
+    showSignedOut(linkError ? `That sign-in link didn't work (${linkError}). Request a new one below.` : "");
+  }
 });

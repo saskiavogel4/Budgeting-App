@@ -8,6 +8,7 @@ A budgeting app built for college students. Connect your bank through [Plaid](ht
 - **Themes**: Light, Dark, and System (follows your device)
 - **Responsive**: sidebar on desktop, icon rail on tablets, bottom tab bar on phones. Installable as a home-screen app
 - **Demo mode**: try everything with realistic sample data, no bank or keys needed
+- **Email-only sign-in**: enter your email, click the link you receive, and you're in (Supabase Auth magic link). Each user's data is kept separate
 
 ## How it works
 
@@ -24,6 +25,20 @@ netlify.toml             Netlify build, functions, and security headers
 ```
 
 Your Plaid **secret never reaches the browser**. Plaid access tokens are encrypted (AES-256-GCM) by the functions before they're stored in the browser, so no database is needed. Budgets and cash expenses are saved in the browser's localStorage.
+
+## Sign-in (Supabase)
+
+Sign-in uses the Supabase project **CampusCash** (`uprmyehyzlyhqmlushok`). Its URL and publishable key are in `public/js/config.js`. The publishable key is meant to be public. The Supabase client library is bundled in `public/vendor/`, so nothing loads from a CDN.
+
+- The Netlify Functions only work for signed-in users. They verify the Supabase session on every request.
+- Each encrypted bank token is tied to the user who connected it.
+
+**One-time setup in the Supabase dashboard** (Authentication → URL Configuration):
+
+- **Site URL**: your Netlify URL, e.g. `https://your-site.netlify.app`
+- **Redirect URLs**: add `https://your-site.netlify.app/**` (and `http://localhost:8888/**` for local dev)
+
+**Email delivery:** Supabase's built-in email sender only delivers to members of your Supabase organization's team, and only a few emails per hour. That's fine for personal use. To let anyone sign in, add a custom SMTP provider (e.g. Resend) under Authentication → Emails → SMTP Settings.
 
 ## Plaid keys (required for real bank data)
 

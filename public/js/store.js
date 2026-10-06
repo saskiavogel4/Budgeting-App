@@ -1,7 +1,8 @@
 // App state, saved in this browser's localStorage.
 import { defaultBudgets } from "./categories.js";
 
-const KEY = "campuscash:data:v1";
+const LEGACY_KEY = "campuscash:data:v1";
+let KEY = LEGACY_KEY;
 
 function blank() {
   return {
@@ -14,7 +15,7 @@ function blank() {
   };
 }
 
-let state = load();
+let state = blank();
 const listeners = new Set();
 
 function load() {
@@ -25,6 +26,20 @@ function load() {
     /* storage blocked or corrupted: start fresh */
   }
   return blank();
+}
+
+// Each signed-in user gets their own saved data in this browser.
+export function initStore(userId) {
+  KEY = `${LEGACY_KEY}:${userId}`;
+  try {
+    // One-time move of data saved before sign-in existed.
+    const legacy = localStorage.getItem(LEGACY_KEY);
+    if (legacy && !localStorage.getItem(KEY)) localStorage.setItem(KEY, legacy);
+    localStorage.removeItem(LEGACY_KEY);
+  } catch {
+    /* storage blocked */
+  }
+  state = load();
 }
 
 export function getState() {
