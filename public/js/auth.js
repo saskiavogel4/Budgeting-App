@@ -67,6 +67,7 @@ export function friendlyAuthError(err) {
   const msg = err?.message || "";
   if (err?.status === 429 || /rate limit/i.test(msg)) return "Too many attempts. Please wait a few minutes and try again.";
   if (/invalid login credentials/i.test(msg)) return "Incorrect email or password.";
+  if (/banned/i.test(msg)) return "This account has been suspended. Contact the site administrator.";
   if (/email not confirmed/i.test(msg)) return "Please confirm your email first. Check your inbox for the confirmation link.";
   if (/already registered|already exists/i.test(msg)) return "An account with this email already exists. Sign in instead.";
   if (/password should be|weak password|at least/i.test(msg)) return msg;

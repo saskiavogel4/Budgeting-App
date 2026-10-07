@@ -9,6 +9,7 @@ A budgeting app built for college students. Connect your bank through [Plaid](ht
 - **Responsive**: sidebar on desktop, icon rail on tablets, bottom tab bar on phones. Installable as a home-screen app
 - **Demo mode**: try everything with realistic sample data, no bank or keys needed
 - **Email + password sign-in**: create an account, sign in, and reset a forgotten password (Supabase Auth). Each user's data is kept separate
+- **Roles & Admin page**: administrator, employee and user roles. Admins and employees get an Admin page with monitoring, a user list, and an activity log. Admins can also change roles, edit profiles, set passwords, suspend, delete or create accounts, and post site-wide announcements
 - **Profiles**: each user has a profile (name, school, major, graduation year, monthly income) saved in Supabase. New users are guided to fill it in, and the Budgets page compares your budget with your income
 
 ## How it works
@@ -37,6 +38,19 @@ Sign-in uses the Supabase project **CampusCash** (`uprmyehyzlyhqmlushok`). Its U
 **Database:** the `profiles` table is defined in `supabase/migrations/` (already applied to the CampusCash project).
 - Row Level Security means each user can only read and edit their own profile.
 - A trigger creates an empty profile automatically when someone signs up.
+
+**Roles:** stored in `user_roles` (users can't edit it). Change roles from the Admin page. To make someone admin directly in SQL:
+`update public.user_roles set role = 'admin' where user_id = (select id from auth.users where email = 'you@example.com');`
+
+| | User | Employee | Admin |
+|---|---|---|---|
+| Own budget & profile | ✓ | ✓ | ✓ |
+| Admin page: monitoring, all users, activity log, CSV export | | ✓ | ✓ |
+| Send password-reset emails | | ✓ | ✓ |
+| Change roles, edit any profile, announcements | | | ✓ |
+| Set passwords, suspend, delete, create accounts | | | ✓ (needs service key) |
+
+**Service key (for password/suspend/delete/create):** in Supabase go to **Project Settings → API Keys**, copy the **secret** (or legacy `service_role`) key, and add it in Netlify as `SUPABASE_SERVICE_ROLE_KEY`. It stays on the server and never reaches the browser.
 
 **One-time setup in the Supabase dashboard** (Authentication → URL Configuration):
 

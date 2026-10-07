@@ -358,3 +358,37 @@ body:not(.signed-out) .auth-screen { display: none; }
   .form-grid { grid-template-columns: minmax(0, 1fr); }
   .tabbar a { font-size: 10px; }
 }
+
+/* ---------- Admin ---------- */
+.admin-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.admin-bar-right { display: flex; gap: 10px; align-items: center; }
+.avatar-sm { width: 38px; height: 38px; font-size: 14px; }
+.user-pills { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.role-admin { background: var(--accent-2); color: var(--accent); }
+.role-employee { background: var(--warn-bg); color: var(--warn); }
+.role-user { background: var(--surface-2); color: var(--text-2); }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.status-dot.ok { background: var(--good); }
+.status-dot.warn { background: var(--warn); }
+.status-dot.bad { background: var(--bad); }
+.bars { display: flex; align-items: flex-end; gap: 2px; height: 120px; border-bottom: 1px solid var(--border); }
+.bar-col { flex: 1; height: 100%; display: flex; align-items: flex-end; position: relative; outline: none; }
+.bar { display: block; width: 100%; background: var(--accent); border-radius: 4px 4px 0 0; }
+.bar-col:hover .bar, .bar-col:focus .bar { filter: brightness(1.15); }
+.bar-col:hover::after, .bar-col:focus::after {
+  content: attr(data-tip); position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  background: var(--text); color: var(--bg); font-size: 12px; padding: 4px 8px; border-radius: 6px; white-space: nowrap; z-index: 2;
+}
+.bar-col:hover::before, .bar-col:focus::before { content: ""; position: absolute; inset: 0; background: var(--surface-2); border-radius: 4px; z-index: -1; }
+.bars-axis { display: flex; justify-content: space-between; margin-top: 6px; }
+.user-meta { display: grid; gap: 2px; margin: -6px 0 16px; }
+.sep { border: 0; border-top: 1px solid var(--border); margin: 18px 0; }
+textarea.input { resize: vertical; min-height: 80px; }
+.announcement { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+dialog { width: min(560px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow: auto; }
+@media (max-width: 640px) {
+  .user-pills { flex-direction: column; align-items: flex-end; }
+  .tabbar a { font-size: 9.5px; padding: 6px 2px; }
+}
+.banner.announcement { width: calc(100% - 48px); margin: 0 24px 8px; }
+@media (max-width: 640px) { .banner.announcement { width: calc(100% - 32px); margin: 0 16px 8px; } }

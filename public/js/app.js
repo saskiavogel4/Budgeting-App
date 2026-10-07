@@ -7,14 +7,17 @@ import {
   onAuthChange, linkErrorFromUrl, friendlyAuthError, isRecoveryLink,
 } from "./auth.js";
 import { loadProfile, saveProfile, firstName, initials } from "./profile.js";
+import { client } from "./auth.js";
+import { initAdmin, resetAdmin, adminView, handleAdminAction, handleAdminInput, handleAdminSubmit } from "./admin.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const view = $("#view");
-const VIEWS = { overview: "Overview", activity: "Activity", budgets: "Budgets", profile: "Profile", settings: "Settings" };
+const VIEWS = { overview: "Overview", activity: "Activity", budgets: "Budgets", profile: "Profile", settings: "Settings", admin: "Admin" };
 let plaidInfo = { configured: false, reachable: false, env: "sandbox" };
 let busy = false;
 let user = null;
 let profile = null; // null while loading
+let role = "user"; // "user" | "employee" | "admin" (enforced on the server; this only shows/hides UI)
 let profileError = null;
 let activityFilter = { q: "", cat: "all", limit: 150 };
 
@@ -412,7 +415,7 @@ function settingsView() {
 
       <section class="card settings-section">
         <div class="card-head"><h2>Account</h2></div>
-        <p>Signed in as <span class="account-email">${esc(user?.email || "")}</span></p>
+        <p>Signed in as <span class="account-email">${esc(user?.email || "")}</span>${role !== "user" ? ` <span class="pill ${role === "admin" ? "pill-good" : "pill-warn"}">${role === "admin" ? "Administrator" : "Employee"}</span>` : ""}</p>
         <div class="btn-row">
           <a class="btn" href="#/profile">Edit profile</a>
           <button class="btn" data-action="sign-out">Sign out</button>
@@ -520,6 +523,7 @@ function updateAvatar() {
 }
 
 view.addEventListener("submit", async (e) => {
+  if (await handleAdminSubmit(e)) return;
   if (e.target.id !== "profile-form") return;
   e.preventDefault();
   const f = e.target.elements;
@@ -553,6 +557,49 @@ view.addEventListener("submit", async (e) => {
   });
 });
 
+/* ---------- Roles & announcements ---------- */
+async function fetchRole() {
+  const uid = user?.id;
+  const { data, error } = await client.rpc("my_role");
+  if (error || user?.id !== uid) return;
+  role = data || "user";
+  showStaffNav();
+  if (currentView() === "admin" || currentView() === "settings") render();
+}
+
+function showStaffNav() {
+  const staff = role === "admin" || role === "employee";
+  document.querySelectorAll('[data-view="admin"]').forEach((a) => (a.hidden = !staff));
+}
+
+async function refreshAnnouncement() {
+  const el = $("#announcement");
+  const { data } = await client.from("announcements").select("id, message, level").eq("active", true)
+    .order("created_at", { ascending: false }).limit(1);
+  const a = data?.[0];
+  let dismissed = null;
+  try {
+    dismissed = localStorage.getItem("campuscash:announcement-dismissed");
+  } catch {
+    /* ignore */
+  }
+  if (!a || String(a.id) === dismissed) {
+    el.hidden = true;
+    return;
+  }
+  el.className = `banner ${a.level === "warning" ? "" : "banner-info"} announcement`;
+  el.innerHTML = `<span>📣 ${esc(a.message)}</span><button class="link-btn" data-action="dismiss-announcement" data-id="${a.id}" aria-label="Dismiss announcement">Dismiss</button>`;
+  el.hidden = false;
+}
+
+initAdmin({
+  esc, openDialog, toast, render,
+  confirm: (...args) => confirm(...args),
+  user: () => user,
+  role: () => role,
+  refreshAnnouncement,
+});
+
 /* ---------- Render ---------- */
 function currentView() {
   const v = location.hash.replace(/^#\/?/, "");
@@ -569,7 +616,7 @@ function render() {
     if (a.dataset.view === v) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
   });
-  view.innerHTML = { overview: overviewView, activity: activityView, budgets: budgetsView, profile: profileView, settings: settingsView }[v]();
+  view.innerHTML = { overview: overviewView, activity: activityView, budgets: budgetsView, profile: profileView, settings: settingsView, admin: adminView }[v]();
 
   $("#sync-btn").hidden = !s.mode;
   $("#sync-label").textContent = s.mode ? timeAgo(lastSynced()) : "";
@@ -724,6 +771,7 @@ document.addEventListener("click", async (e) => {
   const el = e.target.closest("[data-action]");
   if (!el) return;
   const { action, id } = el.dataset;
+  if (action.startsWith("admin-") && (await handleAdminAction(action, el))) return;
   switch (action) {
     case "connect":
       if (plaidInfo.reachable && !plaidInfo.configured) return showSetupHelp();
@@ -760,6 +808,14 @@ document.addEventListener("click", async (e) => {
     case "theme":
       applyTheme(el.dataset.theme);
       return render();
+    case "dismiss-announcement":
+      try {
+        localStorage.setItem("campuscash:announcement-dismissed", id);
+      } catch {
+        /* ignore */
+      }
+      $("#announcement").hidden = true;
+      return;
     case "reload-profile":
       return fetchProfile();
     case "skip-profile":
@@ -801,6 +857,7 @@ document.addEventListener("click", async (e) => {
 $("#sync-btn").addEventListener("click", refresh);
 
 view.addEventListener("input", (e) => {
+  if (handleAdminInput(e)) return;
   if (e.target.id === "tx-search") {
     activityFilter.q = e.target.value;
     activityFilter.limit = 150;
@@ -873,6 +930,8 @@ function setAuthMode(mode) {
 function showSignedOut(message) {
   user = null;
   profile = null;
+  role = "user";
+  resetAdmin();
   document.body.className = "signed-out";
   document.title = "Sign in · CampusCash";
   if (recovering) {
@@ -891,9 +950,14 @@ function startApp(u) {
   if (!switched) return;
   initStore(u.id);
   profile = null;
+  role = "user";
+  resetAdmin();
+  showStaffNav();
   render();
   updateAvatar();
   fetchProfile();
+  fetchRole();
+  refreshAnnouncement();
   plaidStatus().then((info) => {
     plaidInfo = info;
     if (currentView() === "settings") render();
